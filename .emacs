@@ -1,6 +1,4 @@
 (menu-bar-mode -1)
-(toggle-scroll-bar -1)
-(tool-bar-mode -1)
 
 (setq inhibit-splash-screen t)
 (setq inhibit-startup-message t)
@@ -8,6 +6,7 @@
 
 
 (require 'package)
+(add-to-list 'load-path "~/.emacs.d/")
 (add-to-list 'package-archives' ("melpa" . "http://melpa.org/packages/"))
 (add-to-list 'package-archives' ("elpa" . "http://elpa.gnu.org/packages/"))
 (custom-set-variables
@@ -29,7 +28,7 @@
  '(line-number-mode nil)
  '(linum-format " %5i ")
  '(package-selected-packages
-   '(autopair coffee-mode alert-termux company-emoji emojify slack indium go-playground company-go go-mode ruby-electric ruby-tools powerline sublime-themes yasnippet-snippets yasnippet company-lsp flycheck magit-gh-pulls gh ido-vertical-mode afternoon-theme forge git-link git-gutter magit ido-grid-mode zoom tsc lsp-docker lsp-mode company web-mode docker-compose-mode dockerfile-mode js2-mode typescript-mode auto-complete ispell))
+   '(react-snippets autopair coffee-mode alert-termux company-emoji emojify slack indium go-playground company-go go-mode ruby-electric ruby-tools powerline sublime-themes yasnippet-snippets yasnippet company-lsp flycheck magit-gh-pulls gh ido-vertical-mode afternoon-theme forge git-link git-gutter magit ido-grid-mode zoom tsc lsp-docker lsp-mode company web-mode docker-compose-mode dockerfile-mode js2-mode typescript-mode auto-complete ispell))
  '(tab-stop-list
    '(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 46 48 50 52 54 56 58 60))
  '(vc-annotate-background nil)
@@ -77,7 +76,7 @@
 (require 'company-emoji)
 (require 'slack)
 (require 'alert)
-(require 'autopair)
+(setq electric-pair-mode t)
 (setq ido-enable-flex-matching t)
 (setq ido-everywhere t)
 (setq line-number-mode t)
@@ -102,11 +101,14 @@
 (add-to-list 'auto-mode-alist '("\\.mjs\\'" . typescript-mode))
 (add-to-list 'company-backends 'company-emoji)
 
+(eval-after-load 'flycheck
+  '(add-hook 'flycheck-mode-hook #'flycheck-golangci-lint-setup))
+
 (add-hook 'after-init-hook 'global-company-mode)
 (add-hook 'js2-mode-hook #'lsp)
 (add-hook 'web-mode #'lsp)
 (add-hook 'typescript-mode-hook #'lsp)
 (add-hook 'after-init-hook #'global-emojify-mode)
 (global-linum-mode t)
-(autopair-global-mode) ;; enable autopair in all buffers
 (ido-mode 1)
+(electric-pair-mode 1)
