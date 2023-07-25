@@ -48,8 +48,4 @@
 ;(unpin! pinned-package another-pinned-package)
 ;; ...Or *all* packages (NOT RECOMMENDED; will likely break things)
 ;(unpin! t)
-(package!
-  emacs-application-framework
-  :recipe (:host github :repo "emacs-eaf/emacs-application-framework"
-           :files ("*")
-           :build (:not compile)))
+(package! zig-mode)
