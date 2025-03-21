@@ -1,9 +1,9 @@
 # Path to your oh-my-bash installation.
-export OSH=/root/.oh-my-bash
+export OSH=~/.oh-my-bash
 
 # Set name of the theme to load. Optionally, if you set this to "random"
 # it'll load a random theme each time that oh-my-bash is loaded.
-OSH_THEME="agnoster"
+OSH_THEME="powerline-multiline"
 
 # Uncomment the following line to use case-sensitive completion.
 # CASE_SENSITIVE="true"
@@ -48,9 +48,11 @@ OSH_THEME="agnoster"
 # Example format: completions=(ssh git bundler gem pip pip3)
 # Add wisely, as too many completions slow down shell startup.
 completions=(
+  docker
   git
   composer
   ssh
+  bun
 )
 
 # Which aliases would you like to load? (aliases can be found in ~/.oh-my-bash/aliases/*)
@@ -68,6 +70,7 @@ aliases=(
 plugins=(
   git
   bashmarks
+  nvm
 )
 
 source $OSH/oh-my-bash.sh
@@ -99,3 +102,21 @@ source $OSH/oh-my-bash.sh
 # Example aliases
 # alias bashconfig="mate ~/.bashrc"
 # alias ohmybash="mate ~/.oh-my-bash"
+#
+
+export PATH="/opt/homebrew/Cellar/go/1.20.7/libexec:/opt/homebrew/bin/:~/.emacs.d/bin/:${PATH}"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"                   # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" # This loads nvm bash_completion
+
+if type brew &>/dev/null; then                                            #
+  HOMEBREW_PREFIX="$(brew --prefix)"                                      #
+  if [[ -r "${HOMEBREW_PREFIX}/etc/profile.d/bash_completion.sh" ]]; then #
+    source "${HOMEBREW_PREFIX}/etc/profile.d/bash_completion.sh"          #
+  else                                                                    #
+    for COMPLETION in "${HOMEBREW_PREFIX}/etc/bash_completion.d/"*; do    #
+      [[ -r "${COMPLETION}" ]] && source "${COMPLETION}"                  #
+    done                                                                  #
+  fi                                                                      #
+fi                                                                        #
