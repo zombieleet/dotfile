@@ -47,6 +47,24 @@
 (setq-default js-indent-level 2)
 (setq-default typescript-indent-level 2)
 
+;; Ensure commonly used local bins are in PATH for Doom/Emacs runtime
+(let ((go-bin (expand-file-name "~/go/bin"))
+      (user-py-bin (expand-file-name "~/Library/Python/3.14/bin"))
+      (user-bin (expand-file-name "~/bin"))
+      (user-local-bin (expand-file-name "~/.local/bin")))
+  (when (file-directory-p go-bin)
+    (add-to-list 'exec-path go-bin)
+    (setenv "PATH" (concat go-bin ":" (getenv "PATH"))))
+  (when (file-directory-p user-py-bin)
+    (add-to-list 'exec-path user-py-bin)
+    (setenv "PATH" (concat user-py-bin ":" (getenv "PATH"))))
+  (when (file-directory-p user-bin)
+    (add-to-list 'exec-path user-bin)
+    (setenv "PATH" (concat user-bin ":" (getenv "PATH"))))
+  (when (file-directory-p user-local-bin)
+    (add-to-list 'exec-path user-local-bin)
+    (setenv "PATH" (concat user-local-bin ":" (getenv "PATH")))))
+
 ;; Whenever you reconfigure a package, make sure to wrap your config in an
 ;; `after!' block, otherwise Doom's defaults may override your settings. E.g.
 ;;
@@ -83,42 +101,34 @@
   (shell-command (concat "echo " (buffer-file-name) " | pbcopy")))
 
 ;; Go mode configuration
-(use-package! go-mode
-  :defer t)
+;; (use-package! go-mode :defer t) - Handled by Doom (go module)
 
 ;; Flycheck
-(use-package! flycheck
-  :ensure t)
+;; (use-package! flycheck :ensure t) - Handled by Doom (syntax module)
 
-;; LSP configuration for Go
-(use-package! lsp-mode
-  :hook ((go-mode . lsp-deferred)
-         (js2-mode . lsp-deferred))
-  :commands (lsp lsp-deferred))
+;; LSP configuration
+;; Handled by Doom (lsp module). Ensure (javascript +lsp) is in init.el if needed for JS.
+;; (use-package! lsp-mode ...)
 
 ;; JS2 Mode for JavaScript
-(use-package! js2-mode
-  :defer t)
+;; (use-package! js2-mode :defer t) - Handled by Doom (javascript module)
 
 ;; Node.js REPL
-(use-package! nodejs-repl
-  :ensure t)
+(use-package! nodejs-repl)
 
 ;; Company for autocompletion
-(use-package! company
-  :ensure t)
+;; (use-package! company :ensure t) - Handled by Doom (company module)
 
 ;; LSP Treemacs integration
 (use-package! lsp-treemacs
-  :after (lsp-mode treemacs)
-  :ensure t)
+  :after (lsp-mode treemacs))
 
 
 ;; DAP mode configuration
-(use-package! dap-mode
-  :after lsp-mode
-  :config
-  (dap-auto-configure-mode)
+;; Note: dap-mode is provided by the :tools debugger module in init.el
+(after! dap-mode
+  ;; Enable auto-configuration features (dap-auto-configure-mode is deprecated)
+  (setq dap-auto-configure-features '(sessions locals controls tooltip))
 
   ;; Go debugging configuration
   (require 'dap-dlv-go)
@@ -335,73 +345,166 @@
 
   (map! :leader
         (:prefix "d"
-         :desc "Debug (select config)" "s" #'my/dap-debug-select))
+         :desc "Debug (select config)" "s" #'my/dap-debug-select)))
 
-  :hook ((go-mode . dap-mode)
-         (js2-mode . dap-mode)))
 
-;; Enable DAP mode by default in programming modes
-(add-hook 'prog-mode-hook #'dap-mode)
+;; Projectile configuration - don't treat $HOME as project root
+(after! projectile
+  ;; Add .git back - it's needed for proper project detection
+  ;; Instead, explicitly ignore home directory
+  (add-to-list 'projectile-ignored-projects "~/")
+  (add-to-list 'projectile-ignored-projects (expand-file-name "~/")))
 
-;; If you want the UI controls to also be enabled by default
-(add-hook 'prog-mode-hook #'dap-ui-mode)
+;; Easy Hugo configuration
+(setq easy-hugo-basedir "/Users/victory.osikwemhe/afro-marxist/"
+      easy-hugo-url "http://localhost:1313"
+      easy-hugo-root "/")
 
-;; Ellama configuration
-(use-package ellama
-  :ensure t
-  :bind ("C-c e" . ellama-transient-main-menu)
-  ;; send last message in chat buffer with C-c C-c
-  :hook (org-ctrl-c-ctrl-c-final . ellama-chat-send-last-message)
-  :init
-  ;; setup key bindings
-  ;; (setopt ellama-keymap-prefix "C-c e")
-  ;; language you want ellama to translate to
-  (setopt ellama-language "English")
-  ;; could be llm-openai for example
-  (require 'llm-ollama)
-  (setopt ellama-provider
-          (make-llm-ollama
-           ;; this model should be pulled to use it
-           ;; value should be the same as you print in terminal during pull
-           :chat-model "qwen2.5-coder:14b-instruct-q5_K_M"
-           :embedding-model "nomic-embed-text"
-           :default-chat-non-standard-params '(("num_ctx" . 8192))))
-  (setopt ellama-summarization-provider
-          (make-llm-ollama
-           :chat-model "qwen2.5:14b-instruct-q5_K_M"
-           :embedding-model "nomic-embed-text"
-           :default-chat-non-standard-params '(("num_ctx" . 32768))))
-  (setopt ellama-coding-provider
-          (make-llm-ollama
-           :chat-model "qwen2.5-coder:14b-instruct-q5_K_M"
-           :embedding-model "nomic-embed-text"
-           :default-chat-non-standard-params '(("num_ctx" . 32768))))
-  ;; Naming new sessions with llm
-  (setopt ellama-naming-provider
-          (make-llm-ollama
-           :chat-model "llama3:8b-instruct-q5_K_M"
-           :embedding-model "nomic-embed-text"
-           :default-chat-non-standard-params '(("stop" . ("\n")))))
-  (setopt ellama-naming-scheme 'ellama-generate-name-by-llm)
-  ;; Translation llm provider
-  (setopt ellama-translation-provider
-          (make-llm-ollama
-           :chat-model "qwen2.5-coder:14b-instruct-q5_K_M"
-           :embedding-model "nomic-embed-text"
-           :default-chat-non-standard-params
-           '(("num_ctx" . 32768))))
-  (setopt ellama-extraction-provider (make-llm-ollama
-                                      :chat-model "qwen2.5-coder:7b-instruct-q8_0"
-                                      :embedding-model "nomic-embed-text"
-                                      :default-chat-non-standard-params
-                                      '(("num_ctx" . 32768))))
-  ;; customize display buffer behaviour
-  ;; see ~(info "(elisp) Buffer Display Action Functions")~
-  (setopt ellama-chat-display-action-function #'display-buffer-full-frame)
-  (setopt ellama-instant-display-action-function #'display-buffer-at-bottom)
+;; Claude Code IDE configuration
+(use-package! claude-code-ide
   :config
-  ;; show ellama context in header line in all buffers
-  (ellama-context-header-line-global-mode +1)
-  ;; handle scrolling events
-  (advice-add 'pixel-scroll-precision :before #'ellama-disable-scroll)
-  (advice-add 'end-of-buffer :after #'ellama-enable-scroll))
+  ;; Set Claude Code CLI path
+  (setq claude-code-ide-cli-path (expand-file-name "~/.local/bin/claude"))
+
+  ;; Disable debug mode for cleaner output (you can re-enable if needed)
+  (setq claude-code-ide-cli-debug nil)
+
+  ;; Add extra CLI flags
+  (setq claude-code-ide-cli-extra-flags "--dangerously-skip-permissions")
+
+  ;; Enable MCP server for full Emacs integration
+  (setq claude-code-ide-enable-mcp-server t)
+
+  ;; Setup Emacs MCP tools so Claude can use xref, project info, etc.
+  (claude-code-ide-emacs-tools-setup)
+
+  ;; Configure display settings for claude-code-ide window
+  ;; This makes it appear at the bottom instead of the side
+  (set-popup-rule! "^\\*claude-code-ide\\*"
+    :side 'bottom
+    :size 0.3
+    :select nil
+    :quit nil
+    :ttl nil)
+
+  ;; Auto-start claude-code-ide when Emacs starts
+  (add-hook 'emacs-startup-hook
+            (lambda ()
+              (run-with-timer 1 nil
+                              (lambda ()
+                                (require 'claude-code-ide)
+                                (claude-code-ide-mcp-start)))))
+
+  ;; Custom keybindings under "c" (code) prefix
+  (map! :leader
+        (:prefix ("c" . "code")
+         :desc "Start Claude Code" "C" #'claude-code-ide-mcp-start
+         :desc "Stop Claude Code" "Q" #'claude-code-ide-mcp-stop
+         :desc "Send region to Claude" "R" #'claude-code-ide-send-region)))
+
+(after! lsp-mode
+  (setq lsp-disabled-clients '(semgrep-ls))
+  
+  ;; CRITICAL: Disable lsp-mode's attempt to call dap-auto-configure-mode
+  ;; This function is deprecated and causes errors
+  (setq lsp-enable-dap-auto-configure nil)
+  
+  ;; CRITICAL: Prevent LSP from starting in home directory
+  ;; Only start LSP in actual project directories (with go.mod, .git, etc.)
+  (setq lsp-auto-guess-root t)
+  (setq lsp-file-watch-threshold 5000)
+  (setq lsp-enable-file-watchers nil)
+  
+  ;; IMPORTANT: Keep lsp-use-plists as t (Doom's default) for better performance
+  ;; The hash-table errors are actually harmless warnings from gopls logging
+  (setq lsp-use-plists t)
+  
+  ;; Suppress verbose log messages that trigger harmless errors
+  (setq lsp-log-io nil)
+  (setq lsp-print-io nil)
+  
+  ;; Increase timeouts to prevent shutdown issues with gopls
+  (setq lsp-response-timeout 60)
+  (setq lsp-idle-delay 0.5)
+  (setq lsp-completion-provider :none) ; Use company-capf instead
+  
+  ;; Prevent gopls from being killed
+  (setq lsp-restart 'auto-restart)
+  (setq lsp-keep-workspace-alive t)
+  
+  ;; Wait for server to be fully initialized
+  (setq lsp-enable-on-type-formatting nil)
+  (setq lsp-signature-auto-activate t)
+  (setq lsp-signature-render-documentation t)
+  
+  ;; Enable all LSP features
+  (setq lsp-enable-symbol-highlighting t)
+  (setq lsp-lens-enable nil)
+  (setq lsp-headerline-breadcrumb-enable nil)
+  (setq lsp-modeline-code-actions-enable nil)
+  (setq lsp-modeline-diagnostics-enable t)
+  
+  ;; Additional gopls-specific settings
+  (lsp-register-custom-settings
+   '(("gopls.completeUnimported" t t)
+     ("gopls.staticcheck" t t)
+     ("gopls.usePlaceholders" t t)
+     ("gopls.analyses.unusedparams" t t)
+     ("gopls.analyses.shadow" t t)))
+  
+  ;; Ensure gopls is properly configured
+  (after! lsp-go
+    (setq lsp-go-use-gofumpt t)
+    (setq lsp-go-analyses '((shadow . t)
+                            (simplifycompositelit . :json-false)))
+    
+    ;; Increase gopls memory limit if needed
+    (setq lsp-go-env '((GOMEMLIMIT . "4GiB")))
+    
+    ;; CRITICAL: Use directory-local workspaces to prevent gopls from indexing entire home directory
+    (setq lsp-auto-guess-root t)
+    (setq lsp-enable-file-watchers nil) ; Disable file watchers to reduce memory usage
+    
+    ;; Gopls initialization options - removed debug server to reduce overhead
+    (setq lsp-go-gopls-server-args nil)))
+
+;; Ensure LSP and syntax highlighting work for all Go files
+(after! go-mode
+  ;; Make sure lsp-deferred is called for every go file
+  (add-hook 'go-mode-hook #'lsp-deferred 90) ; Priority 90 to run after other hooks
+
+  ;; Ensure syntax highlighting is always enabled
+  (add-hook 'go-mode-hook (lambda ()
+                            (font-lock-mode 1)
+                            (font-lock-ensure)) 95))
+
+;; Debug function to check mode state (you can call this with M-x check-go-mode-state)
+(defun check-go-mode-state ()
+  "Check the state of go-mode, lsp, and syntax highlighting."
+  (interactive)
+  (message "Major mode: %s | LSP: %s | Font-lock: %s | DAP: %s"
+           major-mode
+           (if (bound-and-true-p lsp-mode) "enabled" "disabled")
+           (if font-lock-mode "enabled" "disabled")
+           (if (bound-and-true-p dap-mode) "enabled" "disabled")))
+
+;; Enable auto-revert mode to see file changes in real-time
+;; This makes Emacs automatically reload files when they change on disk
+(global-auto-revert-mode 1)
+(setq auto-revert-interval 0.5)  ; Check every 0.5 seconds for faster updates
+(setq auto-revert-verbose nil)   ; Don't show messages when reverting
+
+;; Emacs MCP Server (rhblind/emacs-mcp-server) - allows Claude to interact with Emacs directly
+(use-package! mcp-server
+  :config
+  ;; Optional: Set custom socket name (nil = default: emacs-mcp-server.sock)
+  ;; Other options: 'user (user-based), 'session (session-based), or a custom string
+  (setq mcp-server-socket-name nil)
+
+  ;; Optional: Enable debug logging
+  ;; (setq mcp-server-debug t)
+
+  ;; Start the MCP server automatically on Emacs startup
+  (add-hook 'emacs-startup-hook #'mcp-server-start-unix))
+
+(setq ob-mermaid-cli-path "/opt/homebrew/bin/mmdc")

@@ -8,12 +8,20 @@
 
 ;; To install SOME-PACKAGE from MELPA, ELPA or emacsmirror:
                                         ;(package! some-package)
-
 (package! restclient)
-(package! dap-mode)
-(package! ellama)
+;; (package! dap-mode) - Handled by Doom (debugger module)
 (package! git-link)
+(package! easy-hugo)
+(package! ob-mermaid)
 
+;; Claude Code IDE integration
+(package! claude-code-ide
+  :recipe (:host github :repo "manzaltu/claude-code-ide.el"))
+
+;; Emacs MCP Server - allows Claude to interact with Emacs directly
+(package! mcp-server
+  :recipe (:host github :repo "rhblind/emacs-mcp-server"
+           :files ("*.el" "mcp-wrapper.py" "mcp-wrapper.sh")))
 ;; To install a package directly from a remote git repo, you must specify a
 ;; `:recipe'. You'll find documentation on what `:recipe' accepts here:
 ;; https://github.com/raxod502/straight.el#the-recipe-format
