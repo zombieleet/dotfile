@@ -27,6 +27,14 @@
 ;;(setq doom-font (font-spec :family "Fira Code" :size 12 :weight 'semi-light)
 ;;      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 13))
 ;;
+;; Hyprland + daemon sessions are more predictable when Doom is given explicit
+;; fonts instead of relying on toolkit defaults.
+;; 16pt matches the old vanilla config's (set-face-attribute 'default nil
+;; :height 160).  Reload after changing with 'M-x doom/reload-font'.
+(setq doom-font (font-spec :family "JetBrains Mono" :size 16)
+      doom-variable-pitch-font (font-spec :family "Inter" :size 16)
+      doom-big-font (font-spec :family "JetBrains Mono" :size 22))
+;;
 ;; If you or Emacs can't find your font, use 'M-x describe-font' to look them
 ;; up, `M-x eval-region' to execute elisp code, and 'M-x doom/reload-font' to
 ;; refresh your font settings. If Emacs still can't find your font, it likely
@@ -48,13 +56,21 @@
 (setq-default typescript-indent-level 2)
 
 ;; Ensure commonly used local bins are in PATH for Doom/Emacs runtime
-(let ((go-bin (expand-file-name "~/go/bin"))
+(let ((gvm-go-bin (expand-file-name "~/.gvm/pkgsets/go1.26.1/global/bin"))
+      (gvm-bin (expand-file-name "~/.gvm/gos/go1.26.1/bin"))
+      (nvm-bin (expand-file-name "~/.config/nvm/versions/node/v24.14.0/bin"))
       (user-py-bin (expand-file-name "~/Library/Python/3.14/bin"))
       (user-bin (expand-file-name "~/bin"))
       (user-local-bin (expand-file-name "~/.local/bin")))
-  (when (file-directory-p go-bin)
-    (add-to-list 'exec-path go-bin)
-    (setenv "PATH" (concat go-bin ":" (getenv "PATH"))))
+  (when (file-directory-p gvm-go-bin)
+    (add-to-list 'exec-path gvm-go-bin)
+    (setenv "PATH" (concat gvm-go-bin ":" (getenv "PATH"))))
+  (when (file-directory-p gvm-bin)
+    (add-to-list 'exec-path gvm-bin)
+    (setenv "PATH" (concat gvm-bin ":" (getenv "PATH"))))
+  (when (file-directory-p nvm-bin)
+    (add-to-list 'exec-path nvm-bin)
+    (setenv "PATH" (concat nvm-bin ":" (getenv "PATH"))))
   (when (file-directory-p user-py-bin)
     (add-to-list 'exec-path user-py-bin)
     (setenv "PATH" (concat user-py-bin ":" (getenv "PATH"))))
@@ -118,10 +134,6 @@
 
 ;; Company for autocompletion
 ;; (use-package! company :ensure t) - Handled by Doom (company module)
-
-;; LSP Treemacs integration
-(use-package! lsp-treemacs
-  :after (lsp-mode treemacs))
 
 
 ;; DAP mode configuration
@@ -494,17 +506,255 @@
 (setq auto-revert-interval 0.5)  ; Check every 0.5 seconds for faster updates
 (setq auto-revert-verbose nil)   ; Don't show messages when reverting
 
-;; Emacs MCP Server (rhblind/emacs-mcp-server) - allows Claude to interact with Emacs directly
-(use-package! mcp-server
-  :config
-  ;; Optional: Set custom socket name (nil = default: emacs-mcp-server.sock)
-  ;; Other options: 'user (user-based), 'session (session-based), or a custom string
-  (setq mcp-server-socket-name nil)
-
-  ;; Optional: Enable debug logging
-  ;; (setq mcp-server-debug t)
-
-  ;; Start the MCP server automatically on Emacs startup
-  (add-hook 'emacs-startup-hook #'mcp-server-start-unix))
-
 (setq ob-mermaid-cli-path "/opt/homebrew/bin/mmdc")
+
+;; Wokwi embedded-simulator integration.
+(use-package! wokwi
+  :config
+  (wokwi-global-mode 1))
+
+;; TinyGo LSP environment for projects with a `.tinygo-target' file.
+;; The package only installs its hook once required, so load it with go-mode.
+(use-package! tinygo
+  :after go-mode)
+
+;; Lightweight file tree: dired in a side window (replaces treemacs).
+(use-package! dired-sidebar
+  :commands dired-sidebar-toggle-sidebar
+  :init
+  (map! :leader :desc "File tree" "o p" #'dired-sidebar-toggle-sidebar)
+  :config
+  (setq dired-sidebar-should-follow-file t
+        dired-sidebar-width 30
+        ;; `C-x 1' keeps the tree (marks its window `no-delete-other-windows').
+        dired-sidebar-no-delete-other-windows t)
+  ;; `C-x' window keys pressed *inside* the tree must not close it either.
+  (define-key dired-sidebar-mode-map [remap delete-other-windows]
+              #'my/dired-sidebar-only-main-window)
+  (define-key dired-sidebar-mode-map [remap delete-window]
+              #'my/dired-sidebar-refuse-close))
+
+;; Doom workspaces save/restore window layouts; keep the tree's protection
+;; across that too (Emacs only saves listed window parameters).
+(add-to-list 'window-persistent-parameters '(no-delete-other-windows . writable))
+
+(defun my/dired-sidebar-only-main-window ()
+  "`C-x 1' from the tree: keep the tree and the last used window."
+  (interactive)
+  (if-let* ((win (get-mru-window nil nil t))) ; skips the (dedicated) tree
+      (progn (select-window win)
+             (delete-other-windows))
+    (message "No other window to keep")))
+
+(defun my/dired-sidebar-refuse-close ()
+  "`C-x 0' from the tree: keep it open."
+  (interactive)
+  (message "The file tree stays open. Use %s to hide it."
+           (substitute-command-keys "\\[dired-sidebar-toggle-sidebar]")))
+
+;; With Doom workspaces on, `C-x 0' runs `+workspace/close-window-or-workspace'
+;; (persp-mode's remap beats the tree's own keymap), so guard that command too.
+(defun my/dired-sidebar-guard-close-a (&rest _)
+  (when (eq major-mode 'dired-sidebar-mode)
+    (my/dired-sidebar-refuse-close)
+    t))
+(advice-add '+workspace/close-window-or-workspace :before-until
+            #'my/dired-sidebar-guard-close-a)
+
+;; Doom's :emacs dired module makes dirvish take over every dired buffer via
+;; `dired-noselect'. dirvish and dired-sidebar then fight over the tree's buffer
+;; (dired-sidebar-mode wipes dirvish's buffer-local state, and dirvish's
+;; background process later fails with "hash-table-p, nil"). Keep the tree's
+;; buffers as plain dired; everywhere else dirvish works as usual.
+(defvar my--dired-sidebar-creating nil)
+
+(defun my/dired-sidebar-creating-a (fn &rest args)
+  (let ((my--dired-sidebar-creating t))
+    (apply fn args)))
+
+(defun my/dired-sidebar-skip-dirvish-a (dirvish-fn dired-fn &rest args)
+  (if (or my--dired-sidebar-creating (derived-mode-p 'dired-sidebar-mode))
+      (apply dired-fn args)              ; plain dired for the tree
+    (apply dirvish-fn dired-fn args)))   ; dirvish for everything else
+
+(advice-add 'dired-sidebar-get-or-create-buffer :around #'my/dired-sidebar-creating-a)
+(advice-add 'dirvish-dired-noselect-a :around #'my/dired-sidebar-skip-dirvish-a)
+
+;; Always show the file tree on the left: in every new frame (`emacsclient -c'
+;; or plain `emacs') and in every Doom workspace (e.g. after `C-c p p').
+(defun my/dired-sidebar-window (frame)
+  "Return the dired-sidebar window in FRAME, or nil."
+  (seq-find (lambda (w)
+              (eq (buffer-local-value 'major-mode (window-buffer w))
+                  'dired-sidebar-mode))
+            (window-list frame 'no-minibuf)))
+
+(defun my/dired-sidebar-target-width (frame)
+  "About a quarter of FRAME's width, kept between 15 and 30 columns."
+  (max 15 (min 30 (/ (frame-width frame) 4))))
+
+(defun my/show-dired-sidebar-now (frame)
+  (when (and (frame-live-p frame)
+             (not (frame-parameter frame 'parent-frame)) ; skip popup child frames
+             ;; skip the daemon's invisible startup frame
+             (not (equal (terminal-name (frame-terminal frame)) "initial_terminal"))
+             (require 'dired-sidebar nil t))
+    (with-selected-frame frame
+      (unless (my/dired-sidebar-window frame)
+        (let ((dired-sidebar-width (my/dired-sidebar-target-width frame)))
+          ;; Never let a cramped frame turn into an error at startup.
+          (ignore-errors
+            (save-selected-window
+              (dired-sidebar-show-sidebar))))))))
+
+(defun my/open-dired-sidebar-in-frame (&optional frame)
+  ;; Deferred so Doom/workspaces finish setting up the frame first. FRAME is
+  ;; passed as a timer argument (no closure), so lexical-binding doesn't matter.
+  (run-at-time 0.1 nil #'my/show-dired-sidebar-now
+               (or frame (selected-frame))))
+
+(defun my/open-dired-sidebar-in-workspace (&rest _)
+  ;; A brand-new workspace starts with a single window, so re-add the tree.
+  (my/open-dired-sidebar-in-frame (selected-frame)))
+
+(defun my/dired-sidebar-fit-width (frame)
+  "Resize the tree when FRAME is resized (e.g. retiled by Hyprland)."
+  (when-let* ((win (my/dired-sidebar-window frame))
+              (delta (- (my/dired-sidebar-target-width frame)
+                        (window-width win)))
+              ((/= delta 0)))
+    ;; The sidebar buffer locks its width; unlock it just for this resize.
+    (with-current-buffer (window-buffer win)
+      (let ((window-size-fixed nil))
+        (ignore-errors (window-resize win delta t))))))
+
+;; Search the tree: `/' in the tree (or `C-c o /' anywhere) fuzzy-finds any file
+;; or folder under the tree's root. A folder is revealed and expanded in the
+;; tree; a file opens in the main window. Hidden and .gitignored files are
+;; skipped; use `C-u /' to include hidden ones.
+(defun my/dired-sidebar--candidates (root hidden)
+  "Relative paths under ROOT (folders end in /), via fd when available."
+  (setq root (file-name-as-directory (expand-file-name root))) ; fd can't read "~"
+  (if-let* ((fd (or (executable-find "fd") (executable-find "fdfind"))))
+      (with-temp-buffer
+        ;; stdout only: fd's warnings (e.g. permission denied) go to stderr
+        ;; and must not show up as candidates.
+        (apply #'call-process fd nil '(t nil) nil "--color=never"
+               "--base-directory" root
+               (append (when hidden '("--hidden" "--exclude" ".git")) '(".")))
+        (split-string (buffer-string) "\n" t))
+    (mapcar (lambda (f)
+              (concat (file-relative-name f root)
+                      (if (file-directory-p f) "/" "")))
+            (directory-files-recursively
+             root "" t (lambda (d) (or hidden (not (string-prefix-p
+                                                    "." (file-name-nondirectory
+                                                         (directory-file-name d))))))))))
+
+(defvar my/dired-sidebar-find-history nil
+  "Past picks; vertico lists these first.")
+(defvar my--dired-sidebar-preview-ov nil)
+
+(defun my/dired-sidebar--show-in-tree (win path root)
+  "Put the tree cursor in WIN on PATH (under ROOT), expanding its parent
+folders but not PATH itself. Return non-nil when found."
+  (with-selected-window win
+    (let ((parent (file-name-directory path))
+          (re (concat "[[:space:]]" (regexp-quote (file-name-nondirectory path))
+                      "/?$")))
+      (unless (string= parent root)
+        (dired-sidebar-point-at-file (directory-file-name parent) root))
+      (goto-char (point-min))
+      ;; Several lines can show the same name (e.g. src/ and lib/src/), so
+      ;; check each hit's full path.
+      (cl-loop while (re-search-forward re nil t)
+               when (equal (ignore-errors (dired-get-filename nil t)) path)
+               return (progn (dired-move-to-filename) t)))))
+
+(defun my/dired-sidebar--preview (win root)
+  "Consult state: highlight the current match in the tree while choosing."
+  (let ((start (window-point win)))
+    (lambda (action cand)
+      (when (overlayp my--dired-sidebar-preview-ov)
+        (delete-overlay my--dired-sidebar-preview-ov))
+      (when (window-live-p win)
+        (pcase action
+          ('preview
+           (when cand
+             (ignore-errors
+               (when (my/dired-sidebar--show-in-tree
+                      win (directory-file-name (expand-file-name cand root)) root)
+                 (with-current-buffer (window-buffer win)
+                   (let ((pos (window-point win)))
+                     (setq my--dired-sidebar-preview-ov
+                           (save-excursion
+                             (goto-char pos)
+                             (make-overlay (line-beginning-position)
+                                           (1+ (line-end-position)))))
+                     (overlay-put my--dired-sidebar-preview-ov
+                                  'face 'consult-preview-line)))))))
+          ('return
+           (unless cand                 ; C-g: put the tree cursor back
+             (set-window-point win start))))))))
+
+(defun my/dired-sidebar-find (&optional hidden)
+  "Find a file or folder under the file tree's root.
+While choosing, the tree follows the current match."
+  (interactive "P")
+  (require 'dired-sidebar)
+  (unless (my/dired-sidebar-window (selected-frame))
+    (save-selected-window (dired-sidebar-show-sidebar)))
+  (let* ((win (or (my/dired-sidebar-window (selected-frame))
+                  (user-error "Couldn't open the file tree here")))
+         (root (file-name-as-directory
+                (expand-file-name ; may be "~/..."; fd and the tree need it full
+                 (buffer-local-value 'default-directory (window-buffer win)))))
+         (_ (when (file-remote-p root)
+              (user-error "Tree search doesn't support remote folders")))
+         (cands (my/dired-sidebar--candidates root hidden))
+         (prompt (format "Find in %s: " (abbreviate-file-name root)))
+         (choice (let ((default-directory root)) ; so file annotations resolve
+                   (if (require 'consult nil t)
+                       (consult--read cands
+                                      :prompt prompt
+                                      :category 'file
+                                      :require-match t
+                                      :history 'my/dired-sidebar-find-history
+                                      :state (my/dired-sidebar--preview win root)
+                                      :preview-key '(:debounce 0.1 any))
+                     (completing-read
+                      prompt
+                      (lambda (str pred action)
+                        (if (eq action 'metadata)
+                            '(metadata (category . file))
+                          (complete-with-action action cands str pred)))
+                      nil t nil 'my/dired-sidebar-find-history))))
+         (path (directory-file-name (expand-file-name choice root))))
+    (if (file-directory-p path)
+        (progn                          ; reveal + expand it in the tree
+          (select-window win)
+          (condition-case nil
+              (dired-sidebar-point-at-file path root)
+            ;; Not visible in the listing (e.g. hidden): root the tree there.
+            (error (dired-sidebar-switch-to-dir (file-name-as-directory path)))))
+      (select-window win)
+      (dired-sidebar-find-file path)    ; opens in the main window
+      (save-selected-window             ; and highlight it in the tree
+        (ignore-errors (dired-sidebar-point-at-file path root))))))
+
+;; The tree's "follow current file" idle timer must not re-root the tree while
+;; a prompt is open (it would yank the tree away from the search preview).
+(defun my/dired-sidebar-no-follow-in-minibuffer-a (&rest _)
+  (active-minibuffer-window))
+(advice-add 'dired-sidebar-follow-file :before-until
+            #'my/dired-sidebar-no-follow-in-minibuffer-a)
+
+(map! :leader :desc "Find in file tree" "o /" #'my/dired-sidebar-find)
+(after! dired-sidebar
+  (define-key dired-sidebar-mode-map (kbd "/") #'my/dired-sidebar-find))
+
+(add-hook 'server-after-make-frame-hook #'my/open-dired-sidebar-in-frame)
+(add-hook 'persp-activated-functions #'my/open-dired-sidebar-in-workspace)
+(add-hook 'window-size-change-functions #'my/dired-sidebar-fit-width)
+(unless (daemonp)
+  (add-hook 'window-setup-hook #'my/open-dired-sidebar-in-frame))

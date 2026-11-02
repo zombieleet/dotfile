@@ -18,10 +18,18 @@
 (package! claude-code-ide
   :recipe (:host github :repo "manzaltu/claude-code-ide.el"))
 
-;; Emacs MCP Server - allows Claude to interact with Emacs directly
-(package! mcp-server
-  :recipe (:host github :repo "rhblind/emacs-mcp-server"
-           :files ("*.el" "mcp-wrapper.py" "mcp-wrapper.sh")))
+;; Named `wokwi' to match the feature wokwi.el provides, not the repo name.
+;; The :files line is required: straight's defaults copy only *.el, which
+;; would leave out wokwi-elements.json -- the part artwork the circuit view
+;; reads at runtime.
+(package! wokwi
+  :recipe (:host github :repo "zombieleet/emacs-wokwi"
+           :files (:defaults "wokwi-elements.json")))
+
+
+(package! tinygo
+  :recipe (:host github :repo "zombieleet/emacs-tinygo"))
+
 ;; To install a package directly from a remote git repo, you must specify a
 ;; `:recipe'. You'll find documentation on what `:recipe' accepts here:
 ;; https://github.com/raxod502/straight.el#the-recipe-format
@@ -61,3 +69,6 @@
                                         ;(unpin! pinned-package another-pinned-package)
 ;; ...Or *all* packages (NOT RECOMMENDED; will likely break things)
                                         ;(unpin! t)
+
+(package! dired-sidebar)
+(package! dired-subtree)
